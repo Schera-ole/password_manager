@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 
 	"github.com/Schera-ole/password_manager/internal/server/errors"
 	model "github.com/Schera-ole/password_manager/internal/shared/models"
@@ -152,6 +153,63 @@ func (s *DBStorage) GetEntry(ctx context.Context, entryID string) (model.Entry, 
 	}
 
 	return entry, nil
+}
+
+// GetEntries retrieves multiple entries by their IDs
+// Returns a map of entryID -> Entry for efficient lookup
+func (s *DBStorage) GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error) {
+	if len(entryIDs) == 0 {
+		return make(map[string]model.Entry), nil
+	}
+
+	// Use ANY with array parameter for batch retrieval
+	query := `SELECT id, user_id, title, description, entry_type, meta, encrypted_blob, created_at, updated_at, expires_at, version, tags
+	          FROM entries WHERE id = ANY($1)`
+
+	rows, err := s.db.QueryContext(ctx, query, pq.Array(entryIDs))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errors.ErrQueryExecution, err)
+	}
+	defer rows.Close()
+
+	entries := make(map[string]model.Entry)
+	for rows.Next() {
+		var entry model.Entry
+		var metaJSON string
+		var tagsArray []string
+		err := rows.Scan(
+			&entry.ID,
+			&entry.UserID,
+			&entry.Title,
+			&entry.Description,
+			&entry.Type,
+			&metaJSON,
+			&entry.EncryptedBlob,
+			&entry.CreatedAt,
+			&entry.UpdatedAt,
+			&entry.ExpiresAt,
+			&entry.Version,
+			&tagsArray,
+		)
+		entry.Tags = tagsArray
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", errors.ErrQueryExecution, err)
+		}
+
+		// Parse JSON meta
+		entry.Meta = make(model.Meta)
+		if err := json.Unmarshal([]byte(metaJSON), &entry.Meta); err != nil {
+			return nil, fmt.Errorf("%w: failed to parse meta: %v", errors.ErrQueryExecution, err)
+		}
+
+		entries[entry.ID] = entry
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%w: %v", errors.ErrQueryExecution, err)
+	}
+
+	return entries, nil
 }
 
 // DeleteEntry removes an entry by ID

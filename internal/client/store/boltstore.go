@@ -65,8 +65,15 @@ func (s *BoltStore) LoadToken() ([]byte, error) {
 	var token []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("tokens"))
-		token = make([]byte, len(b.Get([]byte("access_token"))))
-		copy(token, b.Get([]byte("access_token")))
+		if b == nil {
+			return fmt.Errorf("tokens bucket not found")
+		}
+		tokenBytes := b.Get([]byte("access_token"))
+		if tokenBytes == nil {
+			return fmt.Errorf("token not found")
+		}
+		token = make([]byte, len(tokenBytes))
+		copy(token, tokenBytes)
 		return nil
 	})
 	return token, err
@@ -85,8 +92,15 @@ func (s *BoltStore) LoadStaticSalt() ([]byte, error) {
 	var salt []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("salts"))
-		salt = make([]byte, len(b.Get([]byte("static_salt"))))
-		copy(salt, b.Get([]byte("static_salt")))
+		if b == nil {
+			return fmt.Errorf("salts bucket not found")
+		}
+		staticSalt := b.Get([]byte("static_salt"))
+		if staticSalt == nil {
+			return fmt.Errorf("static salt not found")
+		}
+		salt = make([]byte, len(staticSalt))
+		copy(salt, staticSalt)
 		return nil
 	})
 	return salt, err
@@ -105,8 +119,15 @@ func (s *BoltStore) LoadEncSaltEnc() ([]byte, error) {
 	var encrypted []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("salts"))
-		encrypted = make([]byte, len(b.Get([]byte("enc_salt_enc"))))
-		copy(encrypted, b.Get([]byte("enc_salt_enc")))
+		if b == nil {
+			return fmt.Errorf("salts bucket not found")
+		}
+		encSaltEnc := b.Get([]byte("enc_salt_enc"))
+		if encSaltEnc == nil {
+			return fmt.Errorf("enc_salt_enc not found")
+		}
+		encrypted = make([]byte, len(encSaltEnc))
+		copy(encrypted, encSaltEnc)
 		return nil
 	})
 	return encrypted, err
@@ -125,8 +146,15 @@ func (s *BoltStore) LoadEncryptedToken(key string) ([]byte, error) {
 	var encrypted []byte
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("tokens"))
-		encrypted = make([]byte, len(b.Get([]byte(key))))
-		copy(encrypted, b.Get([]byte(key)))
+		if b == nil {
+			return fmt.Errorf("tokens bucket not found")
+		}
+		tokenBytes := b.Get([]byte(key))
+		if tokenBytes == nil {
+			return fmt.Errorf("token not found for key: %s", key)
+		}
+		encrypted = make([]byte, len(tokenBytes))
+		copy(encrypted, tokenBytes)
 		return nil
 	})
 	return encrypted, err
@@ -151,8 +179,13 @@ func (s *BoltStore) LoadEncryptedEntry(entryID string) ([]byte, error) {
 		if b == nil {
 			return fmt.Errorf("cache bucket not found")
 		}
-		encrypted = make([]byte, len(b.Get([]byte("entry/"+entryID))))
-		copy(encrypted, b.Get([]byte("entry/"+entryID)))
+		entryKey := "entry/" + entryID
+		entryBytes := b.Get([]byte(entryKey))
+		if entryBytes == nil {
+			return fmt.Errorf("entry not found: %s", entryID)
+		}
+		encrypted = make([]byte, len(entryBytes))
+		copy(encrypted, entryBytes)
 		return nil
 	})
 	return encrypted, err
@@ -279,6 +312,32 @@ func (s *BoltStore) LoadLastSync() (time.Time, error) {
 	return lastSync, err
 }
 
+// SaveServerCertHash saves the server certificate hash for cert pinning
+func (s *BoltStore) SaveServerCertHash(serverAddr, hash string) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("cache"))
+		return b.Put([]byte("server_cert_hash_"+serverAddr), []byte(hash))
+	})
+}
+
+// LoadServerCertHash loads the server certificate hash for cert pinning
+func (s *BoltStore) LoadServerCertHash(serverAddr string) (string, error) {
+	var hash string
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("cache"))
+		if b == nil {
+			return fmt.Errorf("cache bucket not found")
+		}
+		hashBytes := b.Get([]byte("server_cert_hash_" + serverAddr))
+		if hashBytes == nil {
+			return fmt.Errorf("cert hash not found")
+		}
+		hash = string(hashBytes)
+		return nil
+	})
+	return hash, err
+}
+
 // Close closes the database connection
 func (s *BoltStore) Close() error {
 	if s.db != nil {
@@ -301,7 +360,14 @@ func (s *BoltStore) LoadEncKey() ([]byte, error) {
 	var encoded string
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("cache"))
-		encoded = string(b.Get([]byte("enc_key")))
+		if b == nil {
+			return fmt.Errorf("cache bucket not found")
+		}
+		encKeyBytes := b.Get([]byte("enc_key"))
+		if encKeyBytes == nil {
+			return fmt.Errorf("enc_key not found")
+		}
+		encoded = string(encKeyBytes)
 		return nil
 	})
 	if err != nil {
@@ -339,6 +405,14 @@ func (s *BoltStore) ClearAllData() error {
 			cursor := cacheBucket.Cursor()
 			for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
 				if string(k[:6]) == "entry/" {
+					cacheBucket.Delete(k)
+				}
+			}
+
+			// Delete all server cert hashes
+			cursor = cacheBucket.Cursor()
+			for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+				if string(k[:18]) == "server_cert_hash_" {
 					cacheBucket.Delete(k)
 				}
 			}

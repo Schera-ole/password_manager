@@ -46,12 +46,12 @@ func (s *PMGRPCService) Logout(ctx context.Context, req *authpb.LogoutRequest) (
 // ListEntries - gets all user entries.
 func (s *PMGRPCService) ListEntries(ctx context.Context, req *pmpb.ListEntriesRequest) (*pmpb.ListEntriesResponse, error) {
 	// Extract user ID from context (from JWT token)
-	userID := ctx.Value("user_id")
-	if userID == nil {
+	userID, ok := UserIDFromContext(ctx)
+	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "user not found in context")
 	}
 
-	entries, err := s.commonService.ListEntries(ctx, userID.(string), req.GetTags())
+	entries, err := s.commonService.ListEntries(ctx, userID, req.GetTags())
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,10 @@ func (s *PMGRPCService) ListEntries(ctx context.Context, req *pmpb.ListEntriesRe
 // GetEntry - gets a single entry by ID.
 func (s *PMGRPCService) GetEntry(ctx context.Context, req *pmpb.GetEntryRequest) (*pmpb.GetEntryResponse, error) {
 	// Extract user ID from context (from JWT token)
-	userID := ctx.Value("user_id")
+	userID, ok := UserIDFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not found in context")
+	}
 
 	entryID := req.GetEntryId()
 	if entryID == "" {
@@ -83,7 +86,7 @@ func (s *PMGRPCService) GetEntry(ctx context.Context, req *pmpb.GetEntryRequest)
 		return nil, err
 	}
 	// Check if user_id from jwt == user_id for entry
-	if entry.UserID != userID.(string) {
+	if entry.UserID != userID {
 		return nil, status.Error(codes.PermissionDenied, "access denied")
 	}
 
@@ -146,7 +149,10 @@ func (s *PMGRPCService) UpdateEntry(ctx context.Context, req *pmpb.UpdateEntryRe
 
 // DeleteEntry - deletes an entry.
 func (s *PMGRPCService) DeleteEntry(ctx context.Context, req *pmpb.DeleteEntryRequest) (*pmpb.DeleteEntryResponse, error) {
-	userID := ctx.Value("user_id")
+	userID, ok := UserIDFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not found in context")
+	}
 
 	entryID := req.GetEntryId()
 	if entryID == "" {
@@ -160,7 +166,7 @@ func (s *PMGRPCService) DeleteEntry(ctx context.Context, req *pmpb.DeleteEntryRe
 	}
 
 	// Check authorization - user can only delete their own entries
-	if entry.UserID != userID.(string) {
+	if entry.UserID != userID {
 		return nil, status.Error(codes.PermissionDenied, "access denied")
 	}
 
@@ -235,27 +241,49 @@ func convertEntryToProto(entry model.Entry) *pmpb.Entry {
 
 // Sync - synchronizes entries for a user.
 func (s *PMGRPCService) Sync(ctx context.Context, req *pmpb.SyncRequest) (*pmpb.SyncResponse, error) {
-	userID := ctx.Value("user_id")
+	userID, ok := UserIDFromContext(ctx)
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "user not found in context")
+	}
 
 	// Get sync timestamp from request (client's last sync time)
 	since := req.GetSince().AsTime()
 
 	// Get sync log entries for the user since the given time
-	logs, err := s.commonService.GetSyncLog(ctx, userID.(string), since, 1000)
+	logs, err := s.commonService.GetSyncLog(ctx, userID, since, 1000)
 	if err != nil {
 		return nil, err
 	}
 
-	// Get the actual entries for each sync log entry
-	entries := make([]model.Entry, 0, len(logs))
+	// Separate active entries and deletions
+	var activeEntryIDs []string
+	var deletedEntryIDs []string
 	for _, log := range logs {
-		entry, err := s.commonService.GetEntry(ctx, log.EntryID)
-		if err != nil {
+		if log.Version == -1 {
+			// This is a deletion marker
+			deletedEntryIDs = append(deletedEntryIDs, log.EntryID)
+		} else {
+			// This is an active entry
+			activeEntryIDs = append(activeEntryIDs, log.EntryID)
+		}
+	}
+
+	// Batch get all active entries
+	entriesMap, err := s.commonService.GetEntries(ctx, activeEntryIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build entries slice, filtering by authorization
+	entries := make([]model.Entry, 0, len(activeEntryIDs))
+	for _, entryID := range activeEntryIDs {
+		entry, exists := entriesMap[entryID]
+		if !exists {
 			// Skip entries that couldn't be retrieved
 			continue
 		}
 		// Check authorization
-		if entry.UserID != userID.(string) {
+		if entry.UserID != userID {
 			continue
 		}
 		entries = append(entries, entry)
@@ -269,10 +297,11 @@ func (s *PMGRPCService) Sync(ctx context.Context, req *pmpb.SyncRequest) (*pmpb.
 	now := timestamppb.Now()
 
 	responseBuilder := pmpb.SyncResponse_builder{
-		Entries:    pbEntries,
-		LastSync:   now,
-		ReadOnly:   false,
-		TotalCount: int32(len(pbEntries)),
+		Entries:         pbEntries,
+		LastSync:        now,
+		ReadOnly:        false,
+		TotalCount:      int32(len(pbEntries)),
+		DeletedEntryIds: deletedEntryIDs,
 	}
 	return responseBuilder.Build(), nil
 }

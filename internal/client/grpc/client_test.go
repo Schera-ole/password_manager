@@ -1,9 +1,15 @@
 package grpc
 
 import (
+	"os"
 	"testing"
 	"time"
 )
+
+func init() {
+	// Enable test mode to use insecure credentials
+	os.Setenv("PM_TEST_MODE", "true")
+}
 
 // mockStore is a mock implementation of the Store interface for testing
 type mockStore struct {
@@ -90,6 +96,24 @@ func (m *mockStore) SaveLastSync(t time.Time) error {
 
 func (m *mockStore) LoadLastSync() (time.Time, error) {
 	return time.Time{}, nil
+}
+
+func (m *mockStore) SaveServerCertHash(serverAddr, hash string) error {
+	if m.tokens == nil {
+		m.tokens = make(map[string][]byte)
+	}
+	m.tokens["server_cert_hash_"+serverAddr] = []byte(hash)
+	return nil
+}
+
+func (m *mockStore) LoadServerCertHash(serverAddr string) (string, error) {
+	if m.tokens == nil {
+		return "", nil
+	}
+	if hash, ok := m.tokens["server_cert_hash_"+serverAddr]; ok {
+		return string(hash), nil
+	}
+	return "", nil
 }
 
 func (m *mockStore) Close() error {

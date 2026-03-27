@@ -12,6 +12,32 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// contextKey is a private type for context keys to avoid collisions
+type contextKey string
+
+func (c contextKey) String() string {
+	return "password-manager-context-key-" + string(c)
+}
+
+var (
+	// contextKeyUserID is the key used to store user ID in context
+	contextKeyUserID = contextKey("user_id")
+	// contextKeyEmail is the key used to store email in context
+	contextKeyEmail = contextKey("email")
+)
+
+// UserIDFromContext retrieves user ID from context
+func UserIDFromContext(ctx context.Context) (string, bool) {
+	userID, ok := ctx.Value(contextKeyUserID).(string)
+	return userID, ok
+}
+
+// EmailFromContext retrieves email from context
+func EmailFromContext(ctx context.Context) (string, bool) {
+	email, ok := ctx.Value(contextKeyEmail).(string)
+	return email, ok
+}
+
 // JWTInterceptor is a gRPC unary interceptor that validates the JWT token from client.
 // It expects the token in the "authorization" metadata header.
 // It skips validation for public endpoints (Register, Login), because for them user doesn't send jwt token.
@@ -37,6 +63,11 @@ func JWTInterceptor(tokenMgr auth.TokenManager, repo repository.Repository) grpc
 		token := authHeaders[0]
 		if token == "" {
 			return nil, status.Error(codes.Unauthenticated, "empty authorization header")
+		}
+
+		// Remove "Bearer " prefix if present
+		if len(token) > 7 && token[:7] == "Bearer " {
+			token = token[7:]
 		}
 
 		// Validate JWT token
@@ -68,8 +99,8 @@ func JWTInterceptor(tokenMgr auth.TokenManager, repo repository.Repository) grpc
 		}
 
 		// Add user info to context
-		ctx = context.WithValue(ctx, "user_id", userID)
-		ctx = context.WithValue(ctx, "email", claims.Email)
+		ctx = context.WithValue(ctx, contextKeyUserID, userID)
+		ctx = context.WithValue(ctx, contextKeyEmail, claims.Email)
 
 		return handler(ctx, req)
 	}

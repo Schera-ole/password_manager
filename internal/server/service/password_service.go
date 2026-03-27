@@ -38,8 +38,31 @@ func (ps *PasswordService) GetEntry(ctx context.Context, entry_id string) (model
 	return ps.repository.GetEntry(ctx, entry_id)
 }
 
+func (ps *PasswordService) GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error) {
+	return ps.repository.GetEntries(ctx, entryIDs)
+}
+
 func (ps *PasswordService) DeleteEntry(ctx context.Context, entryID string) error {
-	return ps.repository.DeleteEntry(ctx, entryID)
+	// Get entry first to get user_id and version
+	entry, err := ps.repository.GetEntry(ctx, entryID)
+	if err != nil {
+		return err
+	}
+
+	// Delete the entry
+	err = ps.repository.DeleteEntry(ctx, entryID)
+	if err != nil {
+		return err
+	}
+
+	// Add sync log entry with version = -1 to mark deletion
+	log := model.SyncLog{
+		UserID:    entry.UserID,
+		EntryID:   entryID,
+		Timestamp: entry.UpdatedAt,
+		Version:   -1, // Special version to indicate deletion
+	}
+	return ps.repository.AddSyncLog(ctx, log)
 }
 
 func (ps *PasswordService) ListEntries(ctx context.Context, userID string, tags []string) ([]model.Entry, error) {

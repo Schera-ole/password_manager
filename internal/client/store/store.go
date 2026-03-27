@@ -32,6 +32,10 @@ type Store interface {
 	SaveLastSync(time.Time) error
 	LoadLastSync() (time.Time, error)
 
+	// Server certificate hash for TLS cert pinning
+	SaveServerCertHash(serverAddr, hash string) error
+	LoadServerCertHash(serverAddr string) (string, error)
+
 	// Close DB
 	Close() error
 

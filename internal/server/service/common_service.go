@@ -53,6 +53,11 @@ func (cs *CommonService) GetEntry(ctx context.Context, entryID string) (model.En
 	return cs.passwordService.GetEntry(ctx, entryID)
 }
 
+// GetEntries retrieves multiple password entries using PasswordService.
+func (cs *CommonService) GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error) {
+	return cs.passwordService.GetEntries(ctx, entryIDs)
+}
+
 // DeleteEntry removes a password entry using PasswordService.
 func (cs *CommonService) DeleteEntry(ctx context.Context, entryID string) error {
 	return cs.passwordService.DeleteEntry(ctx, entryID)

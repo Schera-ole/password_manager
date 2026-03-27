@@ -70,6 +70,10 @@ func (m *mockRepository) GetEntry(ctx context.Context, entryID string) (model.En
 	return model.Entry{}, nil
 }
 
+func (m *mockRepository) GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error) {
+	return make(map[string]model.Entry), nil
+}
+
 func (m *mockRepository) DeleteEntry(ctx context.Context, entryID string) error {
 	return nil
 }
@@ -327,7 +331,7 @@ func TestJWTInterceptor_PrivateEndpoint_InvalidToken(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "invalid-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer invalid-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -374,7 +378,7 @@ func TestJWTInterceptor_PrivateEndpoint_TokenNotFoundInDB(t *testing.T) {
 	// Token not in repository
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "valid-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer valid-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -424,7 +428,7 @@ func TestJWTInterceptor_PrivateEndpoint_TokenRevoked(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "revoked-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer revoked-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -473,7 +477,7 @@ func TestJWTInterceptor_PrivateEndpoint_MissingDeviceID(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "token-no-device"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer token-no-device"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -522,7 +526,7 @@ func TestJWTInterceptor_PrivateEndpoint_MissingUserID(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "token-no-user"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer token-no-user"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -571,7 +575,7 @@ func TestJWTInterceptor_PrivateEndpoint_TokenMismatch(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "token1"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer token1"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -620,7 +624,7 @@ func TestJWTInterceptor_PrivateEndpoint_ValidToken(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "valid-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer valid-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -645,18 +649,18 @@ func TestJWTInterceptor_PrivateEndpoint_ValidToken(t *testing.T) {
 	}
 
 	// Check that user_id was added to context
-	userID := handlerCtx.Value("user_id")
-	if userID == nil {
+	userID, ok := UserIDFromContext(handlerCtx)
+	if !ok {
 		t.Error("Expected user_id to be in context")
-	} else if userID.(string) != "user1@example.com" {
+	} else if userID != "user1@example.com" {
 		t.Errorf("Expected user_id 'user1@example.com', got '%v'", userID)
 	}
 
 	// Check that email was added to context
-	email := handlerCtx.Value("email")
-	if email == nil {
+	email, ok := EmailFromContext(handlerCtx)
+	if !ok {
 		t.Error("Expected email to be in context")
-	} else if email.(string) != "user1@example.com" {
+	} else if email != "user1@example.com" {
 		t.Errorf("Expected email 'user1@example.com', got '%v'", email)
 	}
 
@@ -683,7 +687,7 @@ func TestJWTInterceptor_PrivateEndpoint_ValidToken_WithCustomClaims(t *testing.T
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "valid-token-2"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer valid-token-2"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/GetEntry",
@@ -708,18 +712,18 @@ func TestJWTInterceptor_PrivateEndpoint_ValidToken_WithCustomClaims(t *testing.T
 	}
 
 	// Check that user_id was added to context
-	userID := handlerCtx.Value("user_id")
-	if userID == nil {
+	userID, ok := UserIDFromContext(handlerCtx)
+	if !ok {
 		t.Error("Expected user_id to be in context")
-	} else if userID.(string) != "user2@example.com" {
+	} else if userID != "user2@example.com" {
 		t.Errorf("Expected user_id 'user2@example.com', got '%v'", userID)
 	}
 
 	// Check that email was added to context
-	email := handlerCtx.Value("email")
-	if email == nil {
+	email, ok := EmailFromContext(handlerCtx)
+	if !ok {
 		t.Error("Expected email to be in context")
-	} else if email.(string) != "user2@example.com" {
+	} else if email != "user2@example.com" {
 		t.Errorf("Expected email 'user2@example.com', got '%v'", email)
 	}
 }
@@ -759,7 +763,7 @@ func TestJWTInterceptor_NonAuthMethod_WithMetadata(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "valid-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer valid-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",
@@ -797,7 +801,7 @@ func TestJWTInterceptor_NonAuthMethod_WithValidToken(t *testing.T) {
 
 	interceptor := JWTInterceptor(mockTokenMgr, mockRepo)
 
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "valid-token"))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer valid-token"))
 	req := struct{}{}
 	info := &grpc.UnaryServerInfo{
 		FullMethod: "/pm.PasswordManagerService/ListEntries",

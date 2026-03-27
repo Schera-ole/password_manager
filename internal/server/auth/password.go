@@ -73,20 +73,17 @@ func DecodePasswordHash(encoded string) ([]byte, []byte, error) {
 func VerifyPassword(storedHash, password string) (bool, error) {
 	salt, hash, err := DecodePasswordHash(storedHash)
 	if err != nil {
-		fmt.Printf("  Failed to decode password hash: %v\n", err)
 		return false, err
 	}
 
 	// Compute hash of provided password
 	computedHash, err := HashPassword(password, salt)
 	if err != nil {
-		fmt.Printf("  Failed to compute hash: %v\n", err)
 		return false, err
 	}
 
 	// Use constant-time comparison
 	result := constantTimeCompare(hash, computedHash)
-	fmt.Printf("  Comparison result: %t\n", result)
 	return result, nil
 }
 

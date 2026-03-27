@@ -1,8 +1,14 @@
 package app
 
 import (
+	"os"
 	"testing"
 )
+
+func init() {
+	// Enable test mode to use insecure credentials
+	os.Setenv("PM_TEST_MODE", "true")
+}
 
 func TestNewApp_DefaultDBPath(t *testing.T) {
 	// Test that NewApp uses default DB path when not provided
@@ -79,18 +85,19 @@ func TestApp_Config(t *testing.T) {
 	}
 }
 
-func TestApp_Context(t *testing.T) {
-	// Test that Context returns a valid context
+func TestApp_ContextWithTimeout(t *testing.T) {
+	// Test that ContextWithTimeout returns a valid context
 	app, err := NewApp("localhost:50051", "/tmp/test_password_manager.db")
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 	defer app.Close()
 
-	ctx := app.Context()
+	ctx, cancel := app.ContextWithTimeout()
+	defer cancel()
 
 	if ctx == nil {
-		t.Error("Expected Context to be non-nil")
+		t.Error("Expected ContextWithTimeout to return non-nil context")
 	}
 }
 

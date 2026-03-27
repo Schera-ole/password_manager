@@ -16,10 +16,12 @@ import (
 	"github.com/Schera-ole/password_manager/internal/server/migration"
 	"github.com/Schera-ole/password_manager/internal/server/repository"
 	"github.com/Schera-ole/password_manager/internal/server/service"
+	"github.com/Schera-ole/password_manager/internal/server/tls"
 	authpb "github.com/Schera-ole/password_manager/internal/shared/pb/auth"
 	pmpb "github.com/Schera-ole/password_manager/internal/shared/pb/pm"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -91,6 +93,26 @@ func main() {
 	}
 	logSugar.Info("JWT token manager initialized with config secrets")
 
+	// Initialize TLS certificates
+	var tlsCredentials credentials.TransportCredentials
+	if serverConfig.TLSCertPath == "" || serverConfig.TLSKeyPath == "" {
+		logSugar.Info("TLS certificate not provided, generating self-signed certificate...")
+		certPath, keyPath, err := tls.GenerateSelfSignedCert()
+		if err != nil {
+			logSugar.Fatalf("Failed to generate TLS certificate: %v", err)
+		}
+		logSugar.Infof("Self-signed certificate generated at %s", certPath)
+		serverConfig.TLSCertPath = certPath
+		serverConfig.TLSKeyPath = keyPath
+	}
+
+	tlsCert, err := tls.LoadTLSCert(serverConfig.TLSCertPath, serverConfig.TLSKeyPath)
+	if err != nil {
+		logSugar.Fatalf("Failed to load TLS certificate: %v", err)
+	}
+	tlsCredentials = credentials.NewServerTLSFromCert(tlsCert)
+	logSugar.Info("TLS credentials loaded successfully")
+
 	// Initialize CommonService with the repository and token manager
 	commonService = service.NewCommonService(storage, tokenMgr)
 
@@ -125,6 +147,7 @@ func main() {
 		logSugar.Fatalf("Failed to listen on gRPC address %s: %v", serverConfig.GRPCServerAddress, err)
 	}
 	grpcServer = grpc.NewServer(
+		grpc.Creds(tlsCredentials),
 		grpc.UnaryInterceptor(grpcService.JWTInterceptor(tokenMgr, storage)),
 	)
 	authpb.RegisterAuthServiceServer(grpcServer, pmGRPCservice)

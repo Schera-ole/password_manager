@@ -16,6 +16,12 @@ type ServerConfig struct {
 	// GRPCServerAddress - grpc server will start on it
 	GRPCServerAddress string
 
+	// TLSCertPath - path to TLS certificate file
+	TLSCertPath string
+
+	// TLSKeyPath - path to TLS private key file
+	TLSKeyPath string
+
 	// Database connection pool settings
 	// MaxOpenConns - maximum number of open connections to the database
 	// Default: 10
@@ -37,7 +43,7 @@ type ServerConfig struct {
 // NewServerConfig creates a new ServerConfig with default values and parses
 func NewServerConfig() (*ServerConfig, error) {
 	config := &ServerConfig{
-		DatabaseDSN:       "postgres://schera:schera@127.0.0.1:5432/pm",
+		DatabaseDSN:       "",
 		GRPCServerAddress: "127.0.0.1:50051",
 		MaxOpenConns:      10,
 		MaxIdleConns:      5,
@@ -50,6 +56,8 @@ func NewServerConfig() (*ServerConfig, error) {
 	maxIdleConns := flag.Int("max_idle_conns", config.MaxIdleConns, "maximum number of idle connections to the database")
 	connMaxLifetime := flag.Duration("conn_max_lifetime", config.ConnMaxLifetime, "maximum amount of time a connection may be reused")
 	jwtAccessSecret := flag.String("jwt_access_secret", "", "JWT access token secret (base64 encoded)")
+	tlsCertPath := flag.String("tls_cert", "", "path to TLS certificate file (auto-generated if not provided)")
+	tlsKeyPath := flag.String("tls_key", "", "path to TLS private key file (auto-generated if not provided)")
 
 	flag.Parse()
 
@@ -57,6 +65,8 @@ func NewServerConfig() (*ServerConfig, error) {
 		"GRPC_SERVER_ADDRESS": grpcServerAddress,
 		"DATABASE_DSN":        databaseDSN,
 		"JWT_ACCESS_SECRET":   jwtAccessSecret,
+		"TLS_CERT_PATH":       tlsCertPath,
+		"TLS_KEY_PATH":        tlsKeyPath,
 	}
 
 	for envVar, flag := range envVars {
@@ -80,6 +90,8 @@ func NewServerConfig() (*ServerConfig, error) {
 
 	config.DatabaseDSN = *databaseDSN
 	config.GRPCServerAddress = *grpcServerAddress
+	config.TLSCertPath = *tlsCertPath
+	config.TLSKeyPath = *tlsKeyPath
 	config.MaxOpenConns = *maxOpenConns
 	config.MaxIdleConns = *maxIdleConns
 	config.ConnMaxLifetime = *connMaxLifetime

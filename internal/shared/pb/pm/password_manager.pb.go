@@ -768,13 +768,14 @@ func (b0 SyncRequest_builder) Build() *SyncRequest {
 }
 
 type SyncResponse struct {
-	state                 protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Entries    *[]*Entry              `protobuf:"bytes,1,rep,name=entries,proto3"`
-	xxx_hidden_LastSync   *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=last_sync,json=lastSync,proto3"`
-	xxx_hidden_ReadOnly   bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3"`
-	xxx_hidden_TotalCount int32                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                      protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Entries         *[]*Entry              `protobuf:"bytes,1,rep,name=entries,proto3"`
+	xxx_hidden_LastSync        *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=last_sync,json=lastSync,proto3"`
+	xxx_hidden_ReadOnly        bool                   `protobuf:"varint,3,opt,name=read_only,json=readOnly,proto3"`
+	xxx_hidden_TotalCount      int32                  `protobuf:"varint,4,opt,name=total_count,json=totalCount,proto3"`
+	xxx_hidden_DeletedEntryIds []string               `protobuf:"bytes,5,rep,name=deleted_entry_ids,json=deletedEntryIds,proto3"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *SyncResponse) Reset() {
@@ -832,6 +833,13 @@ func (x *SyncResponse) GetTotalCount() int32 {
 	return 0
 }
 
+func (x *SyncResponse) GetDeletedEntryIds() []string {
+	if x != nil {
+		return x.xxx_hidden_DeletedEntryIds
+	}
+	return nil
+}
+
 func (x *SyncResponse) SetEntries(v []*Entry) {
 	x.xxx_hidden_Entries = &v
 }
@@ -848,6 +856,10 @@ func (x *SyncResponse) SetTotalCount(v int32) {
 	x.xxx_hidden_TotalCount = v
 }
 
+func (x *SyncResponse) SetDeletedEntryIds(v []string) {
+	x.xxx_hidden_DeletedEntryIds = v
+}
+
 func (x *SyncResponse) HasLastSync() bool {
 	if x == nil {
 		return false
@@ -862,10 +874,11 @@ func (x *SyncResponse) ClearLastSync() {
 type SyncResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Entries    []*Entry
-	LastSync   *timestamppb.Timestamp
-	ReadOnly   bool
-	TotalCount int32
+	Entries         []*Entry
+	LastSync        *timestamppb.Timestamp
+	ReadOnly        bool
+	TotalCount      int32
+	DeletedEntryIds []string
 }
 
 func (b0 SyncResponse_builder) Build() *SyncResponse {
@@ -876,6 +889,7 @@ func (b0 SyncResponse_builder) Build() *SyncResponse {
 	x.xxx_hidden_LastSync = b.LastSync
 	x.xxx_hidden_ReadOnly = b.ReadOnly
 	x.xxx_hidden_TotalCount = b.TotalCount
+	x.xxx_hidden_DeletedEntryIds = b.DeletedEntryIds
 	return m0
 }
 
@@ -1165,13 +1179,14 @@ const file_internal_shared_pb_pm_password_manager_proto_rawDesc = "" +
 	"\x10GetEntryResponse\x12'\n" +
 	"\x05entry\x18\x01 \x01(\v2\x11.pswmanager.EntryR\x05entry\"?\n" +
 	"\vSyncRequest\x120\n" +
-	"\x05since\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xb2\x01\n" +
+	"\x05since\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x05since\"\xde\x01\n" +
 	"\fSyncResponse\x12+\n" +
 	"\aentries\x18\x01 \x03(\v2\x11.pswmanager.EntryR\aentries\x127\n" +
 	"\tlast_sync\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\blastSync\x12\x1b\n" +
 	"\tread_only\x18\x03 \x01(\bR\breadOnly\x12\x1f\n" +
 	"\vtotal_count\x18\x04 \x01(\x05R\n" +
-	"totalCount\"\xeb\x04\n" +
+	"totalCount\x12*\n" +
+	"\x11deleted_entry_ids\x18\x05 \x03(\tR\x0fdeletedEntryIds\"\xeb\x04\n" +
 	"\x05Entry\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\x12\x14\n" +

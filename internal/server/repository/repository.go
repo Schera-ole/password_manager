@@ -13,6 +13,7 @@ type Repository interface {
 	// Entry-related methods
 	SetEntry(ctx context.Context, entry model.Entry) error
 	GetEntry(ctx context.Context, entry_id string) (model.Entry, error)
+	GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error)
 	DeleteEntry(ctx context.Context, entry_id string) error
 	ListEntries(ctx context.Context, userID string, tags []string) ([]model.Entry, error)
 

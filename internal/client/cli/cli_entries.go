@@ -32,11 +32,10 @@ func (s *cliService) ListEntries(ctx context.Context) ([]models.Entry, error) {
 		}
 
 		// Try to load from cache
-		entries, lastSync, err := s.loadEntriesFromCache(ctx)
+		entries, _, err := s.loadEntriesFromCache(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("load entries from cache: %w", err)
 		}
-		fmt.Printf("Using cached entries (last sync: %v)\n", lastSync)
 		return entries, nil
 	}
 
@@ -441,12 +440,22 @@ func (s *cliService) Sync(ctx context.Context) error {
 		updatedCount++
 	}
 
+	// Handle deleted entries
+	deletedCount := 0
+	for _, entryID := range response.GetDeletedEntryIds() {
+		if err := s.app.Store.DeleteEncryptedEntry(entryID); err != nil {
+			fmt.Printf("Warning: failed to delete entry from cache: %v\n", err)
+		} else {
+			deletedCount++
+		}
+	}
+
 	// Update last sync time
 	newLastSync := time.Now()
 	if err := s.app.Store.SaveLastSync(newLastSync); err != nil {
 		return fmt.Errorf("save last sync time: %w", err)
 	}
 
-	fmt.Printf("Sync completed. Last sync time: %s\n", newLastSync.Format(time.RFC3339))
+	fmt.Printf("Sync completed. Updated: %d, Deleted: %d entries. Last sync time: %s\n", updatedCount, deletedCount, newLastSync.Format(time.RFC3339))
 	return nil
 }

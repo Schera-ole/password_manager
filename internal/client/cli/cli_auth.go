@@ -54,7 +54,9 @@ func (s *cliService) Register(email string, password string) error {
 
 	client := s.app.GRPC
 	authClient := client.GetAuth()
-	_, err = authClient.Register(s.app.Context(), request)
+	ctx, cancel := s.app.ContextWithTimeout()
+	defer cancel()
+	_, err = authClient.Register(ctx, request)
 	if err != nil {
 		return fmt.Errorf("register on server: %w", err)
 	}
@@ -71,11 +73,9 @@ func (s *cliService) Login(email string, password string) error {
 
 	// Load static_salt from store (or generate new one for new user)
 	staticSalt, err := s.app.Store.LoadStaticSalt()
-	fmt.Printf("  StaticSalt: %s\n", staticSalt)
 	if err != nil {
 		// Generate new static salt if not found
 		staticSalt, err = crypto.GenerateStaticSalt()
-		fmt.Printf("  StaticSalt: %s\n", staticSalt)
 		if err != nil {
 			return fmt.Errorf("generate static_salt: %w", err)
 		}
@@ -106,7 +106,9 @@ func (s *cliService) Login(email string, password string) error {
 
 	client := s.app.GRPC
 	authClient := client.GetAuth()
-	response, err := authClient.Login(s.app.Context(), request)
+	ctx, cancel := s.app.ContextWithTimeout()
+	defer cancel()
+	response, err := authClient.Login(ctx, request)
 	if err != nil {
 		return fmt.Errorf("login on server: %w", err)
 	}
@@ -164,7 +166,9 @@ func (s *cliService) Logout() error {
 	}.Build()
 	client := s.app.GRPC
 	authClient := client.GetAuth()
-	if _, err := authClient.Logout(s.app.Context(), request); err != nil {
+	ctx, cancel := s.app.ContextWithTimeout()
+	defer cancel()
+	if _, err := authClient.Logout(ctx, request); err != nil {
 		// Log the error but continue with local cleanup
 		fmt.Fprintf(os.Stderr, "Warning: failed to revoke token on server: %v\n", err)
 	}

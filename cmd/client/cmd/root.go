@@ -120,5 +120,13 @@ func promptPassword(cmd *cobra.Command) (context.Context, error) {
 	defer crypto.ZeroMemory(pwd)
 
 	ctx := grpc.WithPassword(cmd.Context(), string(pwd))
+
+	// Add timeout from app config if available
+	if appInstance := GetAppFromContext(ctx); appInstance != nil {
+		ctx, cancel := appInstance.ContextWithTimeout()
+		defer cancel()
+		return ctx, nil
+	}
+
 	return ctx, nil
 }

@@ -13,11 +13,9 @@ import (
 
 // App represents the main application instance
 type App struct {
-	cfg    config.Config
-	Store  store.Store
-	GRPC   *grpc.Client
-	ctx    context.Context
-	cancel context.CancelFunc
+	cfg   config.Config
+	Store store.Store
+	GRPC  *grpc.Client
 }
 
 // NewApp creates a new App instance with gRPC client and BoltDB store
@@ -47,15 +45,11 @@ func NewApp(serverAddr, dbPath string) (*App, error) {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}
 
-	// Create context with timeout from config
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
-
+	// Context is created on-demand before gRPC calls to avoid timeout issues
 	a := &App{
-		cfg:    cfg,
-		GRPC:   grpcClient,
-		Store:  boltStore,
-		ctx:    ctx,
-		cancel: cancel,
+		cfg:   cfg,
+		GRPC:  grpcClient,
+		Store: boltStore,
 	}
 	return a, nil
 }
@@ -75,10 +69,6 @@ func (a *App) Close() error {
 			}
 		}
 	}
-	// Cancel the context to release resources
-	if a.cancel != nil {
-		a.cancel()
-	}
 	return err
 }
 
@@ -87,15 +77,19 @@ func (a *App) Config() config.Config {
 	return a.cfg
 }
 
-// Context returns the app context with timeout
-func (a *App) Context() context.Context {
-	return a.ctx
+// ContextWithTimeout creates a new context with timeout for gRPC calls
+func (a *App) ContextWithTimeout() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), a.cfg.Timeout)
 }
 
 // IsLoggedIn checks if the user is logged in by verifying stored tokens
 func (a *App) IsLoggedIn() (bool, error) {
 	token, err := a.Store.LoadToken()
 	if err != nil {
+		// If token is not found, user is not logged in (not an error)
+		if err.Error() == "token not found" {
+			return false, nil
+		}
 		return false, fmt.Errorf("load token: %w", err)
 	}
 	return len(token) > 0, nil

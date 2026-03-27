@@ -47,6 +47,16 @@ func (m *mockRepository) GetEntry(ctx context.Context, entryID string) (model.En
 	return model.Entry{}, errors.ErrQueryExecution
 }
 
+func (m *mockRepository) GetEntries(ctx context.Context, entryIDs []string) (map[string]model.Entry, error) {
+	result := make(map[string]model.Entry)
+	for _, id := range entryIDs {
+		if entry, ok := m.entries[id]; ok {
+			result[id] = entry
+		}
+	}
+	return result, nil
+}
+
 func (m *mockRepository) DeleteEntry(ctx context.Context, entryID string) error {
 	delete(m.entries, entryID)
 	return nil
